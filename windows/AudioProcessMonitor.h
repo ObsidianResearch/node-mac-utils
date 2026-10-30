@@ -15,7 +15,11 @@ struct AudioProcessResult {
 struct RenderProcessInfo {
     std::string processName;
     DWORD processId;
+    // IMMDevice::GetId of the render endpoint the session plays on, stable across renames.
+    std::string deviceId;
     std::string deviceName;
+    // IAudioMeterInformation::GetPeakValue of the session, 0..1; 0 when it can't be read.
+    float peak;
     bool isActive;
 };
 
@@ -36,3 +40,22 @@ AudioProcessResult GetProcessesAccessingMicrophoneWithResult();
 
 // Speaker/render process detection
 RenderProcessResult GetRenderProcessesWithResult();
+
+// A render endpoint, empty id when there is no default for the role.
+struct RenderDeviceInfo {
+    std::string deviceId;
+    std::string deviceName;
+};
+
+// The default render endpoints: eConsole (what "loopback" captures) and eCommunications (what call apps often use).
+struct DefaultRenderDeviceResult {
+    RenderDeviceInfo console;
+    RenderDeviceInfo communications;
+    HRESULT errorCode;
+    std::string errorMessage;
+    bool success;
+
+    DefaultRenderDeviceResult() : errorCode(S_OK), success(true) {}
+};
+
+DefaultRenderDeviceResult GetDefaultRenderDevice();

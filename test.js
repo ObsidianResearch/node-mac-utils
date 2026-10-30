@@ -41,7 +41,9 @@ async function runTests() {
                 console.log('Sample render process structure:');
                 console.log('  processName:', renderResult.processes[0].processName);
                 console.log('  processId:', renderResult.processes[0].processId);
+                console.log('  deviceId:', renderResult.processes[0].deviceId);
                 console.log('  deviceName:', renderResult.processes[0].deviceName);
+                console.log('  peak:', renderResult.processes[0].peak);
                 console.log('  isActive:', renderResult.processes[0].isActive);
             }
         } else {

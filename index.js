@@ -18,6 +18,14 @@ const noopPlatformUtils = {
       processes: [],
     };
   },
+  getDefaultRenderDevice: () => {
+    return {
+      success: true,
+      error: null,
+      console: null,
+      communications: null,
+    };
+  },
 };
 
 if (process.platform === "darwin") {
@@ -36,6 +44,8 @@ module.exports = {
     platform_utils.getProcessesAccessingMicrophoneWithResult,
   getProcessesAccessingSpeakersWithResult:
     platform_utils.getProcessesAccessingSpeakersWithResult,
+  // Windows only: undefined on macOS
+  getDefaultRenderDevice: platform_utils.getDefaultRenderDevice,
   INFO_ERROR_CODE: 1,
   ERROR_DOMAIN: "com.MicrophoneUsageMonitor",
 
