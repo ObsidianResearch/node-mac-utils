@@ -86,7 +86,9 @@ Napi::Value GetRenderProcessesWithResult(const Napi::CallbackInfo& info) {
         processObj.Set("processId", Napi::Number::New(env, result.processes[i].processId));
         processObj.Set("deviceId", Napi::String::New(env, result.processes[i].deviceId));
         processObj.Set("deviceName", Napi::String::New(env, result.processes[i].deviceName));
-        processObj.Set("peak", Napi::Number::New(env, result.processes[i].peak));
+        if (result.processes[i].hasPeak) {
+          processObj.Set("peak", Napi::Number::New(env, result.processes[i].peak));
+        }
         processObj.Set("isActive", Napi::Boolean::New(env, result.processes[i].isActive));
         processesArray.Set(i, processObj);
       }

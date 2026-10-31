@@ -398,12 +398,15 @@ RenderProcessResult GetRenderProcessesWithResult() {
 
                             info.deviceId = deviceId;
                             info.deviceName = deviceName;
+                            // The session's level: best effort, so a session without a meter is still listed.
                             info.peak = 0.0f;
+                            info.hasPeak = false;
                             IAudioMeterInformation* pMeter = nullptr;
                             if (SUCCEEDED(pSessionControl->QueryInterface(__uuidof(IAudioMeterInformation), (void**)&pMeter))) {
                                 float peak = 0.0f;
                                 if (SUCCEEDED(pMeter->GetPeakValue(&peak))) {
                                     info.peak = peak;
+                                    info.hasPeak = true;
                                 }
                                 pMeter->Release();
                             }
@@ -453,15 +456,23 @@ DefaultRenderDeviceResult GetDefaultRenderDevice() {
         return result;
     }
 
-    // E_NOTFOUND (no render device at all) leaves the role empty rather than failing the call.
+    // E_NOTFOUND (no render device for the role) leaves it empty, reported as null; any other failure fails the call.
     ERole roles[] = {eConsole, eCommunications};
     RenderDeviceInfo* targets[] = {&result.console, &result.communications};
     for (int i = 0; i < 2; i++) {
         IMMDevice* pDevice = nullptr;
-        if (SUCCEEDED(pEnumerator->GetDefaultAudioEndpoint(eRender, roles[i], &pDevice))) {
+        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, roles[i], &pDevice);
+        if (SUCCEEDED(hr)) {
             targets[i]->deviceId = GetDeviceId(pDevice);
             targets[i]->deviceName = GetDeviceFriendlyName(pDevice);
             pDevice->Release();
+        } else if (hr != E_NOTFOUND) {
+            result.errorCode = hr;
+            result.errorMessage = "Failed to get default render endpoint";
+            result.success = false;
+            pEnumerator->Release();
+            CoUninitialize();
+            return result;
         }
     }
 

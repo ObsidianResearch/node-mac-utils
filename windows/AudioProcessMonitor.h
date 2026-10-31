@@ -18,8 +18,9 @@ struct RenderProcessInfo {
     // IMMDevice::GetId of the render endpoint the session plays on, stable across renames.
     std::string deviceId;
     std::string deviceName;
-    // IAudioMeterInformation::GetPeakValue of the session, 0..1; 0 when it can't be read.
+    // IAudioMeterInformation::GetPeakValue of the session, 0..1, when hasPeak; omitted from the result otherwise.
     float peak;
+    bool hasPeak;
     bool isActive;
 };
 
