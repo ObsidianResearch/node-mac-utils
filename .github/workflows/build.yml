@@ -26,4 +26,6 @@ jobs:
       - name: Smoke test the render-device functions
         run: node test-render-devices.js
       - name: Build against Electron 42 headers (the version the adviser app ships)
-        run: npx --yes node-gyp@11 rebuild --target=42.11.10 --dist-url=https://electronjs.org/headers
+        run: npx --yes node-gyp@11 rebuild --target=42.11.18 --dist-url=https://electronjs.org/headers
+      - name: Build as the adviser app's install does (npm run build, the package's own node-gyp 9.4.0)
+        run: npm run build
