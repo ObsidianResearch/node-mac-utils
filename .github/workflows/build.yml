@@ -19,6 +19,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # node-gyp 9.4.0 (the package's own, used by npm run build) needs distutils, gone from Python 3.12.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Install
         run: npm ci --ignore-scripts
       - name: Build against Node
