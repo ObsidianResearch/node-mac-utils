@@ -11,7 +11,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        # windows-2022: windows-latest has Visual Studio 2026 (18), which node-gyp can't detect yet.
+        os: [windows-2022, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -20,10 +21,6 @@ jobs:
           node-version: 20
       - name: Install
         run: npm ci --ignore-scripts
-      - name: Use the runner's Visual Studio
-        if: runner.os == 'Windows'
-        shell: bash
-        run: echo "GYP_MSVS_VERSION=2022" >> "$GITHUB_ENV" 
       - name: Build against Node
         run: npx --yes node-gyp@11 rebuild
       - name: Smoke test the render-device functions
