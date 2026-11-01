@@ -1,0 +1,35 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-2022: windows-latest has Visual Studio 2026 (18), which node-gyp can't detect yet.
+        os: [windows-2022, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # node-gyp 9.4.0 (the package's own, used by npm run build) needs distutils, gone from Python 3.12.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Build against Node
+        run: npx --yes node-gyp@11 rebuild
+      - name: Smoke test the render-device functions
+        run: node test-render-devices.js
+      - name: Build against Electron 42 headers (the version the adviser app ships)
+        run: npx --yes node-gyp@11 rebuild --target=42.11.18 --dist-url=https://electronjs.org/headers
+      - name: Build as the adviser app's install does (npm run build, the package's own node-gyp 9.4.0)
+        run: npm run build

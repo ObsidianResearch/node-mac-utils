@@ -41,6 +41,40 @@ static std::string GetProcessExecutablePath(DWORD processID) {
     return "Unknown";
 }
 
+// UTF-16 to UTF-8
+static std::string WideToUtf8(const wchar_t* wide) {
+    if (!wide) return "";
+    int size = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
+    if (size <= 1) return "";
+    std::string result(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wide, -1, &result[0], size, nullptr, nullptr);
+    result.pop_back();  // the terminating null
+    return result;
+}
+
+static std::string GetDeviceId(IMMDevice* pDevice) {
+    LPWSTR pwszId = nullptr;
+    if (FAILED(pDevice->GetId(&pwszId)) || !pwszId) return "";
+    std::string id = WideToUtf8(pwszId);
+    CoTaskMemFree(pwszId);
+    return id;
+}
+
+static std::string GetDeviceFriendlyName(IMMDevice* pDevice) {
+    std::string deviceName = "Unknown Device";
+    IPropertyStore* pProps = nullptr;
+    if (SUCCEEDED(pDevice->OpenPropertyStore(STGM_READ, &pProps))) {
+        PROPVARIANT varName;
+        PropVariantInit(&varName);
+        if (SUCCEEDED(pProps->GetValue(PKEY_Device_FriendlyName, &varName)) && varName.vt == VT_LPWSTR) {
+            deviceName = WideToUtf8(varName.pwszVal);
+        }
+        PropVariantClear(&varName);
+        pProps->Release();
+    }
+    return deviceName;
+}
+
 // New function with structured result - checks ALL capture devices
 AudioProcessResult GetProcessesAccessingMicrophoneWithResult() {
     AudioProcessResult result;
@@ -312,28 +346,8 @@ RenderProcessResult GetRenderProcessesWithResult() {
         hr = pCollection->Item(deviceIndex, &pDevice);
         if (FAILED(hr)) continue;
 
-        // Get device name
-        std::string deviceName = "Unknown Device";
-        IPropertyStore* pProps = nullptr;
-        hr = pDevice->OpenPropertyStore(STGM_READ, &pProps);
-        if (SUCCEEDED(hr)) {
-            PROPVARIANT varName;
-            PropVariantInit(&varName);
-            hr = pProps->GetValue(PKEY_Device_FriendlyName, &varName);
-
-            if (SUCCEEDED(hr) && varName.vt == VT_LPWSTR) {
-                std::wstring wDeviceName(varName.pwszVal);
-                deviceName.resize(wDeviceName.size() * 4);
-                int bytesWritten = WideCharToMultiByte(CP_UTF8, 0, wDeviceName.c_str(), -1,
-                                                     &deviceName[0], deviceName.size(), nullptr, nullptr);
-                if (bytesWritten > 0) {
-                    deviceName.resize(bytesWritten - 1);
-                }
-            }
-
-            PropVariantClear(&varName);
-            pProps->Release();
-        }
+        std::string deviceId = GetDeviceId(pDevice);
+        std::string deviceName = GetDeviceFriendlyName(pDevice);
 
         IAudioSessionManager2* pSessionManager = nullptr;
         hr = pDevice->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr, (void**)&pSessionManager);
@@ -382,7 +396,20 @@ RenderProcessResult GetRenderProcessesWithResult() {
                                 info.processName = info.processName.substr(lastSlash + 1);
                             }
 
+                            info.deviceId = deviceId;
                             info.deviceName = deviceName;
+                            // The session's level: best effort, so a session without a meter is still listed.
+                            info.peak = 0.0f;
+                            info.hasPeak = false;
+                            IAudioMeterInformation* pMeter = nullptr;
+                            if (SUCCEEDED(pSessionControl->QueryInterface(__uuidof(IAudioMeterInformation), (void**)&pMeter))) {
+                                float peak = 0.0f;
+                                if (SUCCEEDED(pMeter->GetPeakValue(&peak))) {
+                                    info.peak = peak;
+                                    info.hasPeak = true;
+                                }
+                                pMeter->Release();
+                            }
                             info.isActive = true;
                             result.processes.push_back(info);
                         }
@@ -401,6 +428,54 @@ RenderProcessResult GetRenderProcessesWithResult() {
 
     // Cleanup
     pCollection->Release();
+    pEnumerator->Release();
+    CoUninitialize();
+
+    return result;
+}
+
+// The default render endpoints for the console and communications roles
+DefaultRenderDeviceResult GetDefaultRenderDevice() {
+    DefaultRenderDeviceResult result;
+    HRESULT hr = CoInitialize(nullptr);
+
+    if (FAILED(hr)) {
+        result.errorCode = hr;
+        result.errorMessage = "Failed to initialize COM";
+        result.success = false;
+        return result;
+    }
+
+    IMMDeviceEnumerator* pEnumerator = nullptr;
+    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+    if (FAILED(hr)) {
+        result.errorCode = hr;
+        result.errorMessage = "Failed to create device enumerator";
+        result.success = false;
+        CoUninitialize();
+        return result;
+    }
+
+    // E_NOTFOUND (no render device for the role) leaves it empty, reported as null; any other failure fails the call.
+    ERole roles[] = {eConsole, eCommunications};
+    RenderDeviceInfo* targets[] = {&result.console, &result.communications};
+    for (int i = 0; i < 2; i++) {
+        IMMDevice* pDevice = nullptr;
+        hr = pEnumerator->GetDefaultAudioEndpoint(eRender, roles[i], &pDevice);
+        if (SUCCEEDED(hr)) {
+            targets[i]->deviceId = GetDeviceId(pDevice);
+            targets[i]->deviceName = GetDeviceFriendlyName(pDevice);
+            pDevice->Release();
+        } else if (hr != E_NOTFOUND) {
+            result.errorCode = hr;
+            result.errorMessage = "Failed to get default render endpoint";
+            result.success = false;
+            pEnumerator->Release();
+            CoUninitialize();
+            return result;
+        }
+    }
+
     pEnumerator->Release();
     CoUninitialize();
 

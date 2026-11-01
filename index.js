@@ -18,7 +18,18 @@ const noopPlatformUtils = {
       processes: [],
     };
   },
+  getDefaultRenderDevice: () => unsupportedDefaultRenderDevice(),
 };
+
+// Windows only; macOS and Linux report it unsupported rather than throw.
+function unsupportedDefaultRenderDevice() {
+  return {
+    success: false,
+    error: "unsupported",
+    console: null,
+    communications: null,
+  };
+}
 
 if (process.platform === "darwin") {
   platform_utils = require("bindings")("mac_utils.node");
@@ -36,6 +47,9 @@ module.exports = {
     platform_utils.getProcessesAccessingMicrophoneWithResult,
   getProcessesAccessingSpeakersWithResult:
     platform_utils.getProcessesAccessingSpeakersWithResult,
+  // Windows only: macOS and Linux answer { success: false, error: 'unsupported' }
+  getDefaultRenderDevice:
+    platform_utils.getDefaultRenderDevice || unsupportedDefaultRenderDevice,
   INFO_ERROR_CODE: 1,
   ERROR_DOMAIN: "com.MicrophoneUsageMonitor",
 
